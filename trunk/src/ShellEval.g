@@ -19,7 +19,7 @@ options
 
 @header
 {
-  import java.lang.reflect.InvocationTargetException;
+//  import java.lang.reflect.InvocationTargetException;
 
   //import java.io.BufferedReader;
   import java.io.PipedInputStream;
@@ -33,6 +33,8 @@ import java.io.PipedOutputStream;
   import java.util.HashMap;
   import java.util.LinkedList;
   import java.util.List;
+
+//import java.lang.reflect.Constructor;
 
   import groovy.lang.Binding;
 }
@@ -188,7 +190,7 @@ import java.io.PipedOutputStream;
           default:
 // NYI: TODO: convert octal representation
 //          | ('0'..'3') ('0'..'7') ('0'..'7')
-//          | ('0'..'7') ('0'..'7') 
+//          | ('0'..'7') ('0'..'7')
 //          | ('0'..'7')          }
 fatalError("convert octal representation not implemented: "+stringLiteral.substring(i));
             break;
@@ -209,57 +211,65 @@ fatalError("convert octal representation not implemented: "+stringLiteral.substr
 
   {
     javaCommandMap.put("ls",ls.class);
-  }  
+  }
 }
 
 // --- tree walker section ---------------------------------------------
 
 // statement block
 start [Jsh jsh]
-  : (commandList=statement1)+
+  : (commandList=statement1[jsh])+
     {
 Dprintf.dprintf("(statement)*=\%s",commandList);
       PipedInputStream inputStream = null;
       for (Command command : commandList)
       {
-Dprintf.dprintf("inputStream=%s",inputStream);
+Dprintf.dprintf("command=\%s",command);
+if (command != null) {
         command.setInput(inputStream);
         inputStream = command.getOutput();
+}
       }
       Command lastCommand = commandList.getLast();
-Dprintf.dprintf("jsh.getOutput()=%s",jsh.getOutput());
+Dprintf.dprintf("jsh.getOutput()=\%s",jsh.getOutput());
+if (lastCommand != null)
       lastCommand.setOutput(jsh.getOutput());
-Dprintf.dprintf("lastCommand=%s",lastCommand);
+Dprintf.dprintf("lastCommand=\%s",lastCommand);
 
       for (Command command : commandList)
       {
+if (command != null)
         command.run();
       }
     }
   | (NEWLINE)*
   ;
+  catch [RecognitionException exception]
+  {
+    jsh.printError("exceptionxxxxxxxx=\%s",exception);
+  }
 
-statement1 returns [LinkedList<Command> commandList]
-  : a=commandRedirected '|' b=statement1
+statement1 [Jsh jsh] returns [LinkedList<Command> commandList]
+  : a=commandRedirected[jsh] '|' b=statement1[jsh]
     {
 Dprintf.dprintf("a=\%s",a);
 Dprintf.dprintf("b=\%s",b);
       b.addFirst(a);
       $commandList = b;
     }
-  | a=commandRedirected ';'
+  | a=commandRedirected[jsh] ';'
     {
 Dprintf.dprintf("command1");
       $commandList = new LinkedList<Command>();
       $commandList.add(a);
     }
-  | a=commandRedirected NEWLINE
+  | a=commandRedirected[jsh] NEWLINE
     {
 Dprintf.dprintf("command2");
       $commandList = new LinkedList<Command>();
       $commandList.add(a);
     }
-  | a=commandRedirected EOF
+  | a=commandRedirected[jsh] EOF
     {
 Dprintf.dprintf("command3");
       $commandList = new LinkedList<Command>();
@@ -294,85 +304,47 @@ pipedCommand returns [int exitcode]
   ;
 */
 
-commandRedirected returns [Command command]
-  : a=command redirect
+// command with input/output redirected
+commandRedirected [Jsh jsh] returns [Command command]
+  : a=command[jsh] redirect
     {
       $command = a;
     }
   ;
 
 // command
-command returns [Command command]
+command [Jsh jsh] returns [Command command]
   : name=WORD argumentList=arguments
     {
+//      try
+//      {
 Dprintf.dprintf("command=\%s",$name.text);
 //for (String string : argumentList) Dprintf.dprintf("arg=\%s",string);
 //for (String s : javaCommandMap.keySet()) Dprintf.dprintf("java commands=\%s",s);
-      Class javaCommandClass = javaCommandMap.get($name.text);
-      if (javaCommandClass != null)
-      {
-        try
+        Class javaCommandClass = javaCommandMap.get($name.text);
+        if (javaCommandClass != null)
         {
-          JavaCommand javaCommand = (JavaCommand)javaCommandClass.getDeclaredConstructor().newInstance();
-          javaCommand.setArguments(argumentList);
-Dprintf.dprintf("xxxxxxxxxxxxxxxxx");
-
-          $command = new Command(javaCommand);
+          $command = new Command(javaCommandClass,argumentList);
         }
-        catch (InstantiationException exception)
+        else
         {
-Dprintf.dprintf("exception=%s",exception);
-          $command = null;
-System.exit(1);
-          }
-        catch (IllegalAccessException exception)
-        {
-Dprintf.dprintf("exception=%s",exception);
-          $command = null;
-System.exit(1);
+          $command = new Command($name.text,argumentList);
         }
-        catch (InvocationTargetException exception)
-        {
-Dprintf.dprintf("exception=%s",exception);
-          $command = null;
-System.exit(1);
-        }
-        catch (NoSuchMethodException exception)
-        {
-Dprintf.dprintf("exception=%s",exception);
-          $command = null;
-System.exit(1);
-        }
-      }
-      else
-      {
-        try
-        {
-          // get command line
-          ArrayList<String> commandLineList = new ArrayList<String>();
-          commandLineList.add("cmd.exe");
-          commandLineList.add("/C");
-          commandLineList.add($name.text);
-          for (String argument : argumentList)
-          {
-            commandLineList.add(argument);
-          }
-          String[] commandLineArray = commandLineList.toArray(new String[commandLineList.size()]);
-  //for (String s : commandArray) Dprintf.dprintf("commandLineArray=\%s",s);
-
-          // run external program
-          Process process = Runtime.getRuntime().exec(commandLineArray);
-
-          $command = new Command(process);
-        }
-        catch (IOException exception)
-        {
-Dprintf.dprintf("exception=%s",exception);
-          $command = null;
-        }
-      }
+//      }
+//      catch (CommandException exception)
+//      {
+//Dprintf.dprintf("exception=\%s",exception);
+//        $command = null;
+//System.exit(1);
+//      }
     }
   ;
+  catch [CommandException exception]
+  {
+    jsh.outputError(exception.getMessage());
+
+    $command = null;
+  }
 
 arguments returns [ArrayList<String> value = new ArrayList<String>()]
   : (argument
@@ -740,7 +712,7 @@ string returns [StringValue value]
           default:
 // NYI: TODO: convert octal representation
 //          | ('0'..'3') ('0'..'7') ('0'..'7')
-//          | ('0'..'7') ('0'..'7') 
+//          | ('0'..'7') ('0'..'7')
 //          | ('0'..'7')          }
 fatalError("CHARLITERAL convert octal representation not implemented");
             break;

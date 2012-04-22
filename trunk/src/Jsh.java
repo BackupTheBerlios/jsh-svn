@@ -29,7 +29,7 @@ import java.io.ObjectOutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
-//import java.io.PrintWriter;
+import java.io.PrintWriter;
 import java.io.Serializable;
 
 import java.sql.PreparedStatement;
@@ -239,9 +239,10 @@ public class Jsh
   private Label                             widgetStatus;
 
   private PipedOutputStream                 pipedOutputStream;
+  private PrintWriter                       outputStream;
   //private BufferedReader                    inputStream;
   private Thread                            outputThread;
-  
+
   public static VariableMap variableMap = new VariableMap();
   public static TargetMap   targetMap   = new TargetMap();
 
@@ -322,11 +323,38 @@ public class Jsh
     printVerbose(level,0,format,args);
   }
 
+  /** check if system is Windows system
+   * @return TRUE iff Windows, FALSE otherwise
+   */
+  public static boolean isWindowsSystem()
+  {
+    String osName = System.getProperty("os.name").toLowerCase();
+
+    return (osName.indexOf("win") >= 0);
+  }
+
   public PipedOutputStream getOutput()
   {
     return pipedOutputStream;
   }
-  
+
+  /** print output
+   * @param format format string
+   */
+  public void output(String format, Object... args)
+  {
+    outputStream.println(String.format(format,args)); outputStream.flush();
+  }
+
+  /** print error
+   * @param format format string
+   * @param args optional arguments
+   */
+  public void outputError(String format, Object... args)
+  {
+    outputStream.println("ERROR: "+String.format(format,args)); outputStream.flush();
+  }
+
   /** parse .sh file
    * @param fileName .sh file name
    * @return evaluation tree
@@ -895,7 +923,7 @@ Dprintf.dprintf("");
           addCommandLine(commandLine);
           execute(commandLine);
           addHistory(commandLine);
-          
+
           keyEvent.doit = false;
         }
         else if (keyEvent.keyCode == SWT.HOME)
@@ -921,7 +949,7 @@ Dprintf.dprintf("commandHistoryIndex=%d",commandHistoryIndex);
             commandHistoryIndex--;
             setCommandLine(commandHistoryList.get(commandHistoryIndex));
           }
-          
+
           keyEvent.doit = false;
         }
         else if (keyEvent.keyCode == SWT.ARROW_DOWN)
@@ -957,6 +985,7 @@ Dprintf.dprintf("");
     try
     {
       pipedOutputStream = new PipedOutputStream();
+      outputStream      = new PrintWriter(pipedOutputStream);
 
 //outputStream.println("XXXXXXXXXXXXXXXXXXXXXX\n");
 //for (char c : "XXXXXXXXXXXXXXXXXXXXXX\n\n".toCharArray()) pipedOutputStream.write(c);
@@ -978,7 +1007,7 @@ Dprintf.dprintf("");
               {
                 public void run()
                 {
-                  addTextLine(s);                   
+                  addTextLine(s);
                 }
               });
 /**/
@@ -997,7 +1026,7 @@ Dprintf.dprintf("");
 Dprintf.dprintf("exception=%s",exception);
     }
   }
-  
+
   /** init all
    */
   private void initAll()

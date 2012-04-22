@@ -71,7 +71,7 @@ tokens
           default:
 // NYI: TODO: convert octal representation
 //          | ('0'..'3') ('0'..'7') ('0'..'7')
-//          | ('0'..'7') ('0'..'7') 
+//          | ('0'..'7') ('0'..'7')
 //          | ('0'..'7')          }
 //fatalError("convert octal representation not implemented");
             break;
@@ -275,10 +275,10 @@ start
   ;
 
 statement1
-  : command '|' statement1
-  | command ';'
-  | command NEWLINE
-  | command EOF
+  : commandRedirected '|' statement1
+  | commandRedirected ';'
+  | commandRedirected NEWLINE
+  | commandRedirected EOF
   ;
 
 /*
@@ -297,12 +297,14 @@ pipedCommand
   ;
 */
 
-command
-  : program redirect
+// command with input/output redirected
+commandRedirected
+  : command redirect
   ;
 
-// program
-program
+// command
+command
+throws CommandException
   : name=WORD argumentList=arguments
   ;
 
@@ -327,7 +329,7 @@ redirect
 // -----------------------------
 
 statementx
-//  : import_ 
+//  : import_
   : assignment
   | rule
   | NEWLINE
@@ -543,7 +545,7 @@ LINE_COMMENT
     {
       skip();
     }
-    ;   
+    ;
 
 // white space
 WHITESPACE
@@ -570,7 +572,7 @@ IDENTIFIER
 // decimal number
 /*
 DECIMAL_NUMBER
-  : (  
+  : (
        (('1'..'9')('0'..'9')*)
      | (('0'..'9')*'.'('0'..'9')*)
     )
@@ -607,8 +609,8 @@ STRING
 // '...'
 /*
 CHARLITERAL
-  : '\'' 
-    (  EscapeSequence 
+  : '\''
+    (  EscapeSequence
      | ~('\''|'\\')
     )
     '\''
@@ -623,25 +625,25 @@ STRINGLITERAL
      | '\\' '\n'
      | EscapeSequence
      | ~('\\'|'"')
-    )* 
+    )*
     '"'
   ;
 */
 
 fragment
-EscapeSequence 
-  : '\\' (  'b' 
-          | 't' 
-          | 'n' 
-          | 'f' 
-          | 'r' 
-          | '\"' 
-          | '\'' 
-          | '\\' 
+EscapeSequence
+  : '\\' (  'b'
+          | 't'
+          | 'n'
+          | 'f'
+          | 'r'
+          | '\"'
+          | '\''
+          | '\\'
           | ('0'..'3') ('0'..'7') ('0'..'7')
-          | ('0'..'7') ('0'..'7') 
+          | ('0'..'7') ('0'..'7')
           | ('0'..'7')
-         )         
+         )
   ;
 
 // single characters
