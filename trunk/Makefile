@@ -131,9 +131,9 @@ endif
 #--------------------------------- objects -----------------------------------
 
 SOURCES        = src/Jsh.java \
+                 src/Command.java \
                  src/Exec.java \
                  src/Settings.java \
-                 src/Terminal.java \
                  \
                  src/TableLayout.java \
                  src/TableLayoutData.java \
@@ -150,6 +150,8 @@ SOURCES        = src/Jsh.java \
                  src/Dprintf.java \
                  \
                  src/DataModel.java \
+\
+src/ls.java
 
 INTERMEDIATE   = tmp/Config.java \
                  tmp/SimpleJavaRecognizerLexer.java tmp/SimpleJavaRecognizerParser.java tmp/SimpleJavaRecognizer.tokens \
