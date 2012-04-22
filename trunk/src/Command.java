@@ -75,13 +75,21 @@ class CommandOption
   int                i;
 }
 
-abstract class JavaCommand// extends Command
+abstract class JavaCommand extends Command
 {
+  // --------------------------- constants --------------------------------
+
+  // --------------------------- variables --------------------------------
+
+  // ------------------------ native functions ----------------------------
+
+  // ---------------------------- methods ---------------------------------
+
   protected String[] arguments;
 
-  public JavaCommand()
-  {
-  }
+//  public JavaCommand()
+//  {
+//}
 
   public void setArguments(String[] arguments)
   {
@@ -91,6 +99,11 @@ abstract class JavaCommand// extends Command
   public void setArguments(List<String> argumentList)
   {
     this.arguments = argumentList.toArray(new String[argumentList.size()]);
+  }
+
+  public int getExitCode()
+  {
+    return -1;
   }
 
   public int run(PipedInputStream pipedInputStream, PipedOutputStream pipedOutputStream)
@@ -110,28 +123,115 @@ Dprintf.dprintf("no run implemented!");
   }
 }
 
+class ExternalCommand extends Command
+{
+  // --------------------------- constants --------------------------------
+
+  // --------------------------- variables --------------------------------
+
+  // ------------------------ native functions ----------------------------
+
+  // ---------------------------- methods ---------------------------------
+
+  private Process           process;
+  private int               exitCode;
+  private OutputStream      stdin  = null;
+  private InputStream       stdout = null;
+  private InputStream       stderr = null;
+
+  public int run(PipedInputStream pipedInputStream, PipedOutputStream pipedOutputStream)
+  {
+    int exitCode = -1;
+
+    try
+    {
+      stdin  = process.getOutputStream();
+      stdout = process.getInputStream();
+      stderr = process.getErrorStream();
+
+Dprintf.dprintf("stdin, stderr?");
+
+      byte[] buffer = new byte[4096];
+      int    n;
+      while ((n = stdout.read(buffer)) != -1)
+      {
+        if (pipedOutputStream != null)
+        {
+//Dprintf.dprintf("n=%d",n);
+          pipedOutputStream.write(buffer,0,n); pipedOutputStream.flush();
+        }
+      }
+
+      stderr.close();
+      stdout.close();
+      stdin.close();
+
+      exitCode = process.waitFor();
+    }
+    catch (IOException exception)
+    {
+      throw new Error("Execute command "+exception);
+    }
+    catch (InterruptedException exception)
+    {
+      throw new Error("Execute command "+exception);
+    }
+
+    return exitCode;
+  }
+}
+
 public class Command extends Thread
 {
+  enum OptionTypes
+  {
+    STRING,
+    INTEGER,
+    FLOAT,
+    BOOLEAN,
+    ENUMERATION,
+    INCREMENT,
+    SPECIAL
+  };
+
+  class Option
+  {
+    CommandOptionTypes type;
+    String             name;
+    String             shortName;
+
+    String             s;
+    long               l;
+    double             d;
+    Enum               e;
+    int                i;
+  }
+
   // --------------------------- constants --------------------------------
   enum Types
   {
+    NONE,
+
     JAVA,
     EXTERNAL,
+
+    UNKNOWN
   };
 
   // --------------------------- variables --------------------------------
 
   private Types             type;
 
-  private PipedInputStream  inputStream  = null;
-  private PipedOutputStream outputStream = null;
+  private PipedInputStream  pipedInputStream  = null;
+  private PipedOutputStream pipedOutputStream = null;
+
+  private int               exitCode = -1;
 
   // Java command
   private JavaCommand       javaCommand;
 
   // external program
   private Process           process;
-  private int               exitCode;
   private OutputStream      stdin  = null;
   private InputStream       stdout = null;
   private InputStream       stderr = null;
@@ -140,6 +240,16 @@ public class Command extends Thread
 
   // ---------------------------- methods ---------------------------------
 
+  Command()
+  {
+    this.type = Types.UNKNOWN;
+  }
+
+  Command(Types type)
+  {
+    this.type = type;
+  }
+
   /** create new Java command
    * @param javaCommandClass Java command class
    * @param argumentList argument list
@@ -147,12 +257,12 @@ public class Command extends Thread
   Command(Class javaCommandClass, List<String> argumentList)
     throws CommandException
   {
+    this.type = Types.JAVA;
+
+    // instanciate Java command
     try
     {
-      // instanciate Java command
-      this.type        = Types.JAVA;
       this.javaCommand = (JavaCommand)javaCommandClass.getDeclaredConstructor().newInstance();
-      this.javaCommand.setArguments(argumentList);
     }
     catch (InstantiationException exception)
     {
@@ -175,6 +285,9 @@ Dprintf.dprintf("exception=%s",exception);
 //exception.printStackTrace();
       throw new CommandException(exception);
     }
+
+    // set values
+    this.javaCommand.setArguments(argumentList);
   }
 
   /** create new external command
@@ -184,6 +297,8 @@ Dprintf.dprintf("exception=%s",exception);
   Command(String name, List<String> argumentList)
     throws CommandException
   {
+    this.type = Types.EXTERNAL;
+
     try
     {
       // find binary in PATH
@@ -229,8 +344,7 @@ Dprintf.dprintf("run=%s",binaryFile.getAbsolutePath());
       String[] commandLine = commandLineList.toArray(new String[commandLineList.size()]);
 //for (String s : commandLine) Dprintf.dprintf("commandLine=\%s",s);
 
-      // run external program
-      this.type    = Types.EXTERNAL;
+      // start external program
       this.process = Runtime.getRuntime().exec(commandLine);
     }
     catch (IOException exception)
@@ -245,7 +359,7 @@ Dprintf.dprintf("exception=%s",exception);
     switch (type)
     {
       case JAVA:
-        javaCommand.run(inputStream,outputStream);
+        exitCode = javaCommand.run(pipedInputStream,pipedOutputStream);
         break;
       case EXTERNAL:
         try
@@ -254,24 +368,32 @@ Dprintf.dprintf("exception=%s",exception);
           stdout = process.getInputStream();
           stderr = process.getErrorStream();
 
+    Dprintf.dprintf("stdin, stderr?");
+
           byte[] buffer = new byte[4096];
           int    n;
           while ((n = stdout.read(buffer)) != -1)
           {
-            if (outputStream != null)
+            if (pipedOutputStream != null)
             {
     //Dprintf.dprintf("n=%d",n);
-              outputStream.write(buffer,0,n); outputStream.flush();
+              pipedOutputStream.write(buffer,0,n); pipedOutputStream.flush();
             }
           }
 
           stderr.close();
           stdout.close();
           stdin.close();
+
+          exitCode = process.waitFor();
         }
         catch (IOException exception)
         {
-          throw new Error("Execute command");
+          throw new Error("Execute command "+exception);
+        }
+        catch (InterruptedException exception)
+        {
+          throw new Error("Execute command "+exception);
         }
         break;
     }
@@ -279,34 +401,58 @@ Dprintf.dprintf("exception=%s",exception);
 
   public PipedInputStream getOutput()
   {
-    return inputStream;
+    return pipedInputStream;
   }
 
-  public void setInput(PipedInputStream inputStream)
+  public void setInput(PipedInputStream pipedInputStream)
   {
-    this.inputStream = inputStream;
+    this.pipedInputStream = pipedInputStream;
   }
 
-  public void setOutput(PipedOutputStream outputStream)
+  public void setOutput(PipedOutputStream pipedOutputStream)
   {
-    this.outputStream = outputStream;
+    this.pipedOutputStream = pipedOutputStream;
   }
 
   public void waitTerminated()
   {
-    try
+    switch (type)
     {
-      exitCode = process.waitFor();
-    }
-    catch (InterruptedException exception)
-    {
-      exception.printStackTrace();
-      System.exit(1);
+      case JAVA:
+        break;
+      case EXTERNAL:
+        try
+        {
+          process.waitFor();
+        }
+        catch (InterruptedException exception)
+        {
+exception.printStackTrace();
+System.exit(1);
+        }
+        break;
     }
   }
 
   public int getExitCode()
   {
+    switch (type)
+    {
+      case JAVA:
+        break;
+      case EXTERNAL:
+        try
+        {
+          exitCode = process.waitFor();
+        }
+        catch (InterruptedException exception)
+        {
+exception.printStackTrace();
+System.exit(1);
+        }
+        break;
+    }
+
     return exitCode;
   }
 
@@ -315,7 +461,25 @@ Dprintf.dprintf("exception=%s",exception);
    */
   public String toString()
   {
-    return "{ type="+type+", process="+process+" }";
+    String string;
+
+    switch (type)
+    {
+      case NONE:
+        string = "";
+        break;
+      case JAVA:
+        string = "{ type=JAVA"+", class="+javaCommand+" }";
+        break;
+      case EXTERNAL:
+        string = "{ type=EXTERNAL"+", process="+process+" }";
+        break;
+      default:
+        string = "unknown";
+        break;
+    }
+
+    return string;
   }
 }
 
