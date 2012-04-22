@@ -847,8 +847,7 @@ menuItem.addSelectionListener(new SelectionListener()
       public void mouseDoubleClick(MouseEvent mouseEvent)
       {
 //        mouseEvent.doit = false;
-Dprintf.dprintf("");
-
+//Dprintf.dprintf("");
 //        commandLineCaretIndex = widgetTerminal.getCaretOffset() - commandLineStartOffset;
       }
 
@@ -868,14 +867,13 @@ Dprintf.dprintf("mouseEvent=%s",mouseEvent);
         commandLineCaretIndex = widgetTerminal.getCaretOffset() - commandLineStartOffset;
 */
         String selectedText = widgetOutput.getSelectionText();
-Dprintf.dprintf("selectedText=%s",selectedText);
-for (int i : widgetOutput.getSelectionRanges()) Dprintf.dprintf("i=%d",i);
+//Dprintf.dprintf("selectedText=%s",selectedText);
+//for (int i : widgetOutput.getSelectionRanges()) Dprintf.dprintf("i=%d",i);
       }
 
       public void mouseUp(final MouseEvent mouseEvent)
       {
-
-//        commandLineCaretIndex = widgetTerminal.getCaretOffset() - commandLineStartOffset;
+        widgetInput.setFocus();
       }
     });
 /*
